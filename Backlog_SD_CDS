@@ -1,0 +1,209 @@
+@AbapCatalog.sqlViewName: 'ZAEU_BLK_SD'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'SD View for Backlog report'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZAEU_BLKSD
+  as select from vbak
+    inner join vbap
+      on vbap.vbeln = vbak.vbeln  
+      
+  /* left outer join vbup
+   on vbup.vbeln = vbap.vbeln
+   and vbup.posnr = vbap.posnr */
+               
+    left outer join ZAEU_CNFQ_CDS
+      on ZAEU_CNFQ_CDS.vbeln = vbap.vbeln
+     and ZAEU_CNFQ_CDS.posnr = vbap.posnr
+     
+
+    left outer join vbkd
+      on vbkd.vbeln = vbak.vbeln
+     and vbkd.posnr = vbap.posnr
+
+    left outer join vbpa as vbpa_ag
+      on vbpa_ag.vbeln = vbak.vbeln
+     and vbpa_ag.parvw = 'AG'
+
+    left outer join vbpa as vbpa_we
+      on vbpa_we.vbeln = vbak.vbeln
+     and vbpa_we.parvw = 'WE'
+
+    left outer join kna1
+      on kna1.kunnr = vbpa_ag.kunnr
+      
+    left outer join kna1 as kna1_we
+      on kna1_we.kunnr = vbpa_we.kunnr
+
+    left outer join ZAEU_DELQ_CDS
+      on ZAEU_DELQ_CDS.vgbel = vbap.vbeln
+     and ZAEU_DELQ_CDS.vgpos = vbap.posnr
+     
+     left outer join lips
+     on lips.vgbel = vbak.vbeln and
+        lips.vgpos = vbap.posnr 
+
+    left outer join ZAEU_BILLQ_CDS
+      on ZAEU_BILLQ_CDS.aubel = vbap.vbeln
+     and ZAEU_BILLQ_CDS.aupos = vbap.posnr
+     
+     
+     /* left outer join vbrk
+     on vbrk.vbeln = vbrp.vbeln  
+     and ( vbrk.fksto = '' or vbrk.fksto is null ) */
+      
+    
+
+    left outer join mara
+      on mara.matnr = vbap.matnr
+
+    left outer join marc
+      on marc.matnr = vbap.matnr
+     and marc.werks = vbap.werks
+
+    left outer join aufk
+      on aufk.kdauf = vbak.vbeln
+
+    left outer join tvgrt
+      on tvgrt.vkgrp = vbak.vkgrp
+     and tvgrt.spras = $session.system_language
+
+    left outer join tvkbt
+      on tvkbt.vkbur = vbak.vkbur
+     and tvkbt.spras = $session.system_language
+     
+     association [0..1] to ZAEU_HR_CDS as _EmpVE
+      on  _EmpVE.SalesOrder      = vbak.vbeln
+      and _EmpVE.PartnerFunction = 'VE'
+
+    association [0..1] to ZAEU_HR_CDS as _EmpZM
+      on  _EmpZM.SalesOrder      = vbak.vbeln
+      and _EmpZM.PartnerFunction = 'ZM'
+
+    association [0..1] to ZAEU_HR_CDS as _EmpZ2
+      on  _EmpZ2.SalesOrder      = vbak.vbeln
+      and _EmpZ2.PartnerFunction = 'Z2'
+
+    association [0..1] to ZAEU_HR_CDS as _EmpAP
+      on  _EmpAP.SalesOrder      = vbak.vbeln
+      and _EmpAP.PartnerFunction = 'AP'
+
+    association [0..1] to ZAEU_HR_CDS as _EmpZG
+      on  _EmpZG.SalesOrder      = vbak.vbeln
+      and _EmpZG.PartnerFunction = 'ZG'
+
+{
+  /* --- Sales Order / Customer --- */
+  vbak.vbeln                         as SalesOrder,
+  vbak.auart                         as SalesOrderType,
+  vbak.vkorg                         as Salesorg,
+  vbak.erdat                         as OrderDate,
+  ZAEU_BILLQ_CDS.vbtyp               as BillingCat,
+
+  vbpa_ag.kunnr                      as SoldToParty,
+  kna1.name1                         as SoldToName,
+  vbpa_we.kunnr                      as ShipToParty,
+  kna1_we.name1                      as ShipToName,
+  vbpa_we.land1                      as ShipToCnt,
+
+  vbkd.bstkd_e                       as CustomerPO,
+  vbkd.posex_e                       as CustomerPOItem,
+  vbkd.zterm                         as Paymentterm,
+
+  /* --- Item Data --- */
+  vbap.posnr                         as SalesOrderItem,
+  vbap.matnr                         as Material,
+  vbap.kdmat                         as CustomerMaterial,
+  vbap.pstyv                         as ItemCategory,
+  vbap.kwmeng                        as OrderQty,
+  vbap.netpr                         as UnitPrice,
+  vbap.waerk                         as Currency,
+  vbap.zz_zdatu                      as ConfirmDate,
+  vbap.werks                         as sd_plant,
+  vbap.aedat                         as sd_changedon,
+  vbap.zz_reason                     as sd_delaycode,
+  vbap.zz_reason_text                as sd_delaytext,
+  /* Status Tables  */
+  vbap.uvfak                         as billstatus,
+  vbap.lfsta                         as Delivstatus,
+  vbap.gbsta                         as overallstatus,
+  vbap.lfsta                         as itemDelstatus,
+  vbap.fksaa                         as itembilstatus,
+
+  /* --- Schedule Line --- */
+  ZAEU_CNFQ_CDS.firstreqdt           as RequestedDate,
+  ZAEU_CNFQ_CDS.conf_qty             as ConfirmedQty,
+  ZAEU_DELQ_CDS.Del_qty              as DelivQty,
+  ZAEU_BILLQ_CDS.billed_qty          as Billedqty,
+
+  /* --- Calculations (ZRSD28B logic) --- */
+  ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_DELQ_CDS.Del_qty, 0 ) )
+                                     as UndeliveredQty, 
+
+  ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_BILLQ_CDS.billed_qty, 0 ) )
+                                     as UnbilledQty,
+
+  ( ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_BILLQ_CDS.billed_qty, 0 ) ) * vbap.netpr )
+                                     as UnbilledAmount,
+
+  /* --- Shipping / Delivery --- */
+  vbap.werks                         as Plant,
+  vbap.lgort                         as StorageLocation,
+  lips.vbeln                         as DeliveryNote,
+  vbak.vsbed                         as ShippingCondition,
+  vbak.autlf                         as CompleteDelivery,
+
+  /* --- Blocks / Status --- */
+  vbak.lifsk                         as DeliveryBlockHeader,
+  ZAEU_CNFQ_CDS.lifsp                as DeliveryBlockItem,
+  vbak.cmgst                         as CreditBlock,
+
+  /* --- Incoterms --- */
+  vbkd.inco1                         as Incoterms,
+  vbkd.inco2                         as IncotermsLocation,
+
+  /* --- Sales Org Data --- */
+  vbak.vkgrp                         as SalesGroup,
+  tvgrt.bezei                        as SalesGroupText,
+  vbak.vkbur                         as SalesOffice,
+  tvkbt.bezei                        as SalesOfficeText,
+
+  /* --- MTO / PP --- */
+  aufk.astnr                         as WorkOrderStatus,
+
+  /* --- MM Data --- */
+  marc.maabc                         as ABCIndicator,
+  mara.herkl                         as CountryOfOrigin,
+  marc.dispo                         as MRPController,
+  marc.sobsl                         as splprocurement,
+    /* --- Employees via associations --- */
+  _EmpVE.PersonnelNumber         as SalesEmployeePernr,
+  _EmpVE.FirstName               as SalesEmployeeFirstName,
+  _EmpVE.LastName                as SalesEmployeeLastName,
+
+  _EmpZM.PersonnelNumber         as RespEmployeePernr,
+  _EmpZM.FirstName               as RespEmployeeFirstName,
+  _EmpZM.LastName                as RespEmployeeLastName,
+
+  _EmpZ2.PersonnelNumber         as SalesEmployee2Pernr,
+  _EmpZ2.FirstName               as SalesEmployee2FirstName,
+  _EmpZ2.LastName                as SalesEmployee2LastName,
+
+  _EmpAP.PersonnelNumber         as BuyerPernr,
+  _EmpAP.FirstName               as BuyerFirstName,
+  _EmpAP.LastName                as BuyerLastName,
+
+  _EmpZG.PersonnelNumber         as GoodsReceiverPernr,
+  _EmpZG.FirstName               as GoodsReceiverFirstName,
+  _EmpZG.LastName                as GoodsReceiverLastName
+
+}
+where
+      vbak.vbtyp = 'C'
+  and vbap.abgru = ''
+  and vbap.absta <> 'C'
+  and ( vbap.lfsta <> 'C'  or vbap.uvfak <> 'C' )
+  and ZAEU_BILLQ_CDS.vbtyp <> 'U'
+  and vbak.vkorg = 'EU10'
+  
