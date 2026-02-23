@@ -1,0 +1,16 @@
+@AbapCatalog.sqlViewName: 'ZAEU_DELQ'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Helper CDS for Delivery Quantity'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZAEU_DELQ_CDS as select from lips inner join likp
+on likp.vbeln = lips.vbeln
+
+{
+    lips.vgbel,
+    lips.vgpos,
+    sum( lips.lfimg ) as Del_qty
+}
+group by vgbel,vgpos
+
