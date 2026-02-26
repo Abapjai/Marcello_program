@@ -1,0 +1,57 @@
+@AbapCatalog.sqlViewName: 'ZAEU_BLK_MM'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'MM View for Backlog report'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZAEU_BLKMM as select from ekko
+    inner join ekpo on ekko.ebeln = ekpo.ebeln
+    left outer join eket  on ekpo.ebeln = eket.ebeln
+                        and ekpo.ebelp = eket.ebelp
+    left outer join ekpv on ekpo.ebeln = ekpv.ebeln
+                        and ekpo.ebelp = ekpv.ebelp
+    left outer join marc  on ekpo.matnr = marc.matnr
+                        and ekpo.werks = marc.werks
+       
+{
+  /* --- Technical --- */
+  key cast( ekko.ebeln as abap.char(10) )   as document_no,
+  key cast( ekpo.ebelp as abap.char(6) )    as item_no,
+  'MM'                                 as source_module,
+
+  /* --- Header --- */
+  ekko.bsart                            as document_type,
+  ekko.waers                            as currency,
+  ekko.aedat                            as Created_date,
+  ekko.lifnr                            as Vendor,
+  ekko.shipcond                         as ShipCondition,
+  ekko.reswk                            as Supply_plant,
+  ekko.ekorg                            as Purch_org,
+  ekko.bukrs                            as Company_code,
+
+  /* --- Item --- */
+  ekpo.matnr                            as material,
+  ekpo.menge                            as order_qty,
+  ekpo.netpr                            as unit_price,
+  ekpo.werks                            as plant,
+  ekpo.lgort                            as storage_location,
+  ekpo.inco1                            as Incoterm1,
+  ekpo.inco2                            as Incoterm2,
+  ekpo.banfn                            as POReq_no,
+  
+
+  /* --- Schedule Line --- */
+  eket.eindt                            as SchDeliv_date,
+  eket.menge                            as Schedule_qty,
+  eket.dat01                            as committed_date,
+  eket.mng02                            as committed_qty,
+
+  /* --- Material / Planning --- */
+  marc.dispo                            as mrp_controller,
+  marc.maabc                            as abc_indicator,
+  marc.herkl                            as country_of_origin
+}
+where ekko.bstyp = 'F' and 
+      ekko.loekz = ' ' and 
+      ekpo.loekz = ' ' and
+      ekko.bukrs =  'EU10'
