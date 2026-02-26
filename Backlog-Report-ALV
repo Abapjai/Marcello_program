@@ -1,0 +1,1042 @@
+
+*&---------------------------------------------------------------------*
+*& Report ZBAEU02A.
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+*REPORT ZTESTTT3.
+REPORT zbaeu02a.
+
+* Tables Declaration
+TABLES: vbak, vbap, vbep, ekko, eket, marc, vbpa, likp, pa0002, v_vbuk_cds, tcurc.
+
+* Type Definitions
+TYPES: BEGIN OF ty_so_po,
+         " Meta / helper
+         source_module        TYPE char10,
+         " Header / common
+         doc_no               TYPE vbeln,
+         doc_type             TYPE auart,
+         order_date           TYPE erdat,
+         currency             TYPE waers,
+         po_requisitioner     TYPE afnam,
+
+         " Parties
+         sold_to              TYPE kunnr,
+         sold_to_name         TYPE name1,
+         ship_to              TYPE kunnr,
+         ship_to_country      TYPE land1,
+
+         " Customer PO and items
+         cust_po_no           TYPE bstnk,
+         cust_po_item         TYPE posex,
+         doc_item             TYPE posnr,
+         material             TYPE matnr,
+         cust_material        TYPE char40,
+         unit_price           TYPE netpr,
+         currency_unit        TYPE waers,
+         qty_ordered          TYPE kwmeng,
+         qty_confirmed        TYPE bmeng,
+
+         " Z-report / other numeric fields
+         unbilling_amt        TYPE netwr,
+         undn_qty             TYPE kwmeng,
+         unbilling_qty        TYPE kwmeng,
+
+         " Dates / schedule
+         req_date             TYPE edatu,
+         confirm_date         TYPE edatu,
+
+         " Delivery / shipping
+         delivery_note_no     TYPE vbeln,
+         delivery_block_hd    TYPE lifsk,
+         delivery_block_it    TYPE lifsp,
+         ship_cond            TYPE vsbed,
+         incoterms_code       TYPE inco1,
+         incoterms_loc1       TYPE inco2,
+         forwarder_text(132)  TYPE c,
+         ship_instr_text(132) TYPE c,
+
+         " Blocks / reasons / statuses
+         comp_dlv_header      TYPE autlf,
+         dn_credit_block      TYPE lifsp,
+         delay_reason_code    TYPE char10,
+         delay_reason_txt     TYPE ddtext,
+         so_workorder_stat    TYPE char10,
+
+         " Sales org / sales people
+         sales_group          TYPE vkgrp,
+         sales_group_desc     TYPE char40,
+         sales_office         TYPE vkbur,
+         sales_office_desc    TYPE char40,
+         sales_employee_no    TYPE pernr_d,
+         sales_employee_nm    TYPE char40,
+         emp_resp_no          TYPE pernr_d,
+         emp_resp_name        TYPE char40,
+         buyer_no             TYPE char20,
+         buyer_name           TYPE char40,
+         good_receiver_no     TYPE char20,
+         good_receiver_name   TYPE char40,
+
+         " MM-specific
+         mm_abc_indicator     TYPE maabc,
+         mm_country_origin    TYPE char10,
+         mm_hts_code          TYPE stawn,
+         mm_mrp_ctrl_name     TYPE char40,
+
+
+       END OF ty_so_po.
+
+* Internal Tables
+DATA: gt_output TYPE TABLE OF ty_so_po,
+      gs_output TYPE ty_so_po.
+
+* Work areas for selection
+DATA: lt_vbak TYPE TABLE OF vbak,
+      ls_vbak TYPE vbak,
+      lt_ekko TYPE TABLE OF ekko,
+      ls_ekko TYPE ekko.
+
+* ALV Data Declarations
+DATA: go_alv       TYPE REF TO cl_salv_table,
+      go_columns   TYPE REF TO cl_salv_columns_table,
+      go_column    TYPE REF TO cl_salv_column_table,
+      go_functions TYPE REF TO cl_salv_functions_list.
+
+DATA: lt_marc  TYPE TABLE OF marc,
+      ls_marc  TYPE marc,
+      lt_ekko1 TYPE TABLE OF ekko,
+      ls_ekko1 TYPE ekko,
+      lt_mara  TYPE TABLE OF mara,
+      ls_mara  TYPE mara,
+      lt_konv  TYPE TABLE OF konv,
+      ls_konv  TYPE konv,
+      lv_flag  TYPE c,
+      lv_index TYPE sy-tabix.
+* Selection Screen
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+*  TEXT-001 = 'Main Selection Criteria'.
+
+  " SO Related Block
+  SELECTION-SCREEN BEGIN OF BLOCK b12 WITH FRAME TITLE TEXT-002.
+    PARAMETERS: p_so AS CHECKBOX DEFAULT 'X'.
+*    TEXT-002 = 'Sales Order Selection'.
+    SELECT-OPTIONS: s_vkorg FOR vbak-vkorg,
+                    p_vtweg FOR vbak-vtweg NO INTERVALS NO-EXTENSION,
+                    p_spart FOR vbak-spart NO INTERVALS NO-EXTENSION,
+                    s_vkbur FOR vbak-vkbur,
+                    s_vkgrp FOR vbak-vkgrp.
+
+
+    SELECT-OPTIONS: so_auart FOR vbak-auart,
+                    so_vbeln FOR vbak-vbeln,
+                    so_pstyv FOR vbap-pstyv,
+                    so_lifsk FOR vbak-lifsk,
+                    s_plant FOR vbap-werks,
+                    s_dncmg FOR v_vbuk_cds-cmgst.
+  SELECTION-SCREEN END OF BLOCK b12.
+
+  " STO/PO Related Block
+  SELECTION-SCREEN BEGIN OF BLOCK b13 WITH FRAME TITLE TEXT-003.
+*    TEXT-003 = 'STO/PO Selection'.
+    PARAMETERS: p_sto AS CHECKBOX.
+    SELECT-OPTIONS: so_bsart FOR ekko-bsart,
+                    so_ebeln FOR ekko-ebeln,
+                    s_reswk FOR ekko-reswk.
+
+  SELECTION-SCREEN END OF BLOCK b13.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+* Date Selection Block
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-004.
+*  TEXT-004 = 'Date Selection Criteria'.
+  SELECTION-SCREEN BEGIN OF LINE.
+    PARAMETERS: p_rado1 RADIOBUTTON GROUP rad1 DEFAULT 'X'.
+    SELECTION-SCREEN COMMENT 3(18) TEXT-102 FOR FIELD p_rado1.
+    PARAMETERS: p_rado2 RADIOBUTTON GROUP rad1.
+    SELECTION-SCREEN COMMENT 25(20) TEXT-103 FOR FIELD p_rado2.
+    PARAMETERS: p_rado3 RADIOBUTTON GROUP rad1.
+    SELECTION-SCREEN COMMENT 48(5) TEXT-105 FOR FIELD p_rado3.
+  SELECTION-SCREEN END OF LINE.
+
+  SELECT-OPTIONS: s_edatu FOR vbep-edatu,
+                  s_datu  FOR vbep-edatu,
+                  s_cdat  FOR vbak-erdat.
+SELECTION-SCREEN END OF BLOCK b2.
+
+* Currency Block
+*SELECTION-SCREEN ULINE.
+
+
+* Additional Filters Block
+*PARAMETERS: p_dnstat AS CHECKBOX.
+*SELECTION-SCREEN ULINE.
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE TEXT-005.
+  SELECTION-SCREEN BEGIN OF LINE.
+    SELECTION-SCREEN COMMENT 1(9) TEXT-104.
+    SELECTION-SCREEN COMMENT 13(17) TEXT-106.
+    SELECTION-SCREEN COMMENT 33(7) TEXT-107.
+    SELECTION-SCREEN POSITION 10.
+    PARAMETERS: p_cur1 RADIOBUTTON GROUP gr1 DEFAULT 'X'.
+    SELECTION-SCREEN POSITION 31.
+    PARAMETERS: p_cur2 RADIOBUTTON GROUP gr1.
+    SELECTION-SCREEN POSITION 40.
+    PARAMETERS: p_waers TYPE waers DEFAULT 'EUR'.
+  SELECTION-SCREEN END OF LINE.
+*  TEXT-005 = 'Additional Filters'.
+  SELECT-OPTIONS: s_matnr FOR vbap-matnr,
+                  s_sobsl FOR marc-sobsl,
+                  s_kunag FOR likp-kunag,
+                  s_pernr FOR pa0002-pernr.
+
+SELECTION-SCREEN END OF BLOCK b3.
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE TEXT-007.
+  PARAMETERS: alv_def LIKE disvariant-variant.
+SELECTION-SCREEN END OF BLOCK b4.
+
+* Text Symbols
+*TEXT-102 = 'Confirmed'.
+*TEXT-103 = 'Unconfirmed'.
+*TEXT-105 = 'ALL'.
+*TEXT-104 = 'Currency:'.
+*TEXT-106 = 'Convert:'.
+*TEXT-107 = 'Target Currency:'.
+AT SELECTION-SCREEN.
+  " Ensure at least one type selected (Sales Order / STO)
+  IF p_so IS INITIAL AND p_sto IS INITIAL.
+    MESSAGE 'Please select at least one: Sales Order or STO.' TYPE 'E'.
+  ENDIF.
+
+  IF p_so IS NOT INITIAL.
+    IF s_vkorg IS INITIAL.
+      MESSAGE 'Please input Sales org' TYPE 'E'.
+    ENDIF.
+  ENDIF.
+
+
+
+* Start of Selection
+START-OF-SELECTION.
+  PERFORM get_data.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  GET_DATA
+*&---------------------------------------------------------------------*
+FORM get_data.
+
+  REFRESH: gt_output.
+
+  " Process Sales Orders if selected
+  IF p_so = 'X'.
+*    PERFORM get_so_data.
+    PERFORM get_so_cds.
+  ENDIF.
+
+  " Process STO/PO if selected
+  IF p_sto = 'X'.
+*    PERFORM get_sto_data.
+    PERFORM get_mm_cds.
+  ENDIF.
+
+  IF gt_output IS NOT INITIAL.
+    PERFORM ALV_output.
+  ENDIF.
+
+  " Display message if no data found
+  IF gt_output[] IS INITIAL.
+    MESSAGE 'No data found for the selection criteria' TYPE 'I'.
+  ELSE.
+*    MESSAGE i000 WITH 'Data found:' lines( gt_output ) 'records'.
+  ENDIF.
+
+ENDFORM. " GET_DATA
+
+
+*&---------------------------------------------------------------------*
+*& Form get_so_cds
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_so_cds .
+  DATA: lv_billed_qty TYPE vbrp-fkimg,
+        lv_unbill_qty TYPE vbrp-fkimg,
+        lv_unbill_amt TYPE vbrk-netwr,
+        lv_unit_price TYPE vbrk-netwr.
+  DATA : lv_id            TYPE rstxt-tdid,
+         lv_object        TYPE rstxt-tdobject,
+         lv_lang          TYPE rstxt-tdspras,
+         lv_name          TYPE rstxt-tdname,
+         lt_line          TYPE TABLE OF tline,
+         lv_shp_text(132) TYPE c,
+         lv_fwd_text(132) TYPE c.
+
+  IF p_rado1 IS NOT INITIAL OR p_rado3 IS NOT INITIAL.
+    SELECT * FROM zaeu_blk_sd INTO TABLE @DATA(it_sd)
+        WHERE salesorg = 'EU10' AND
+              salesorder      IN @so_vbeln AND
+              Itemcategory    IN @so_pstyv AND
+              salesordertype  IN @so_auart AND
+              material        IN @s_matnr AND
+              sd_plant        IN @s_plant AND
+              orderdate       IN @s_cdat AND
+              soldtoparty     IN @s_kunag AND
+              salesgroup      IN @s_vkgrp AND
+              salesoffice     IN @s_vkbur AND
+*              billstatus <> 'C' AND
+              itembilstatus   <> 'C' AND
+              RequestedDate   IN @s_edatu AND
+              confirmedqty    > 0 AND
+              SalesEmployeePernr IN @s_pernr AND
+              splprocurement IN @s_sobsl.
+
+  ELSEIF p_rado2 IS NOT INITIAL.
+    SELECT * FROM zaeu_blk_sd INTO TABLE @it_sd
+        WHERE salesorg        = 'EU10' AND
+          salesorder          IN @so_vbeln AND
+          Itemcategory        IN @so_pstyv AND
+          salesordertype      IN @so_auart AND
+          material            IN @s_matnr AND
+          sd_plant            IN @s_plant AND
+          orderdate           IN @s_cdat AND
+          soldtoparty         IN @s_kunag AND
+          salesgroup          IN @s_vkgrp AND
+          salesoffice         IN @s_vkbur AND
+*          billstatus <> 'C' AND
+          itembilstatus   <> 'C' AND
+          sd_changedon        IN @s_edatu AND
+          SalesEmployeePernr  IN @s_pernr AND
+          splprocurement      IN @s_sobsl.
+
+  ENDIF.
+
+  IF sy-subrc = 0.
+    SELECT * FROM zaeu_bilq INTO TABLE @DATA(lt_bill)
+      FOR ALL ENTRIES IN @it_sd
+      WHERE aubel  = @it_sd-salesorder
+      AND   aupos  = @it_sd-salesorderitem.
+    IF sy-subrc = 0.
+      SORT lt_bill.
+    ENDIF.
+    SORT it_sd.
+    DELETE ADJACENT DUPLICATES FROM it_sd COMPARING  ALL FIELDS .
+    LOOP AT it_sd ASSIGNING FIELD-SYMBOL(<ls_sd>).
+
+      CLEAR: lv_billed_qty, lv_unbill_qty, lv_unbill_amt.
+
+      "--------------------------------------------------
+      " Get billed quantity
+      "--------------------------------------------------
+      READ TABLE lt_bill INTO DATA(ls_bill)
+           WITH KEY aubel = <ls_sd>-salesorder
+                    aupos = <ls_sd>-salesorderitem.
+*           BINARY SEARCH.
+
+      IF sy-subrc = 0.
+        lv_billed_qty = ls_bill-billed_qty.
+      ENDIF.
+
+      "--------------------------------------------------
+      " Unbilled Quantity = Confirmed - Billed
+      "--------------------------------------------------
+      lv_unbill_qty = <ls_sd>-confirmedqty - lv_billed_qty.
+
+      IF lv_unbill_qty < 0.
+        lv_unbill_qty = 0.
+      ENDIF.
+
+      "--------------------------------------------------
+      " Unit price normalization
+      "--------------------------------------------------
+      IF <ls_sd>-unitprice IS INITIAL.
+        lv_unit_price = 0.
+      ELSE.
+        lv_unit_price = <ls_sd>-unitprice.
+      ENDIF.
+
+      "--------------------------------------------------
+      " Unbilled Amount
+      "--------------------------------------------------
+      lv_unbill_amt = lv_unbill_qty * lv_unit_price.
+
+
+* Forwarder Text
+      CLEAR : lv_id, lv_lang,lv_object,lv_name, lt_line.
+      lv_id = 'ZFDS'.
+      lV_lang = 'E'.
+      lv_object = 'VBBK'.
+      lv_name = <ls_sd>-salesorder.
+
+*      Text filled
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+*         CLIENT                  = SY-MANDT
+          id                      = lv_id
+          language                = lv_lang
+          name                    = lv_name
+          object                  = lv_object
+*         ARCHIVE_HANDLE          = 0
+*         LOCAL_CAT               = ' '
+*       IMPORTING
+*         HEADER                  =
+*         OLD_LINE_COUNTER        =
+        TABLES
+          lines                   = lt_line
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ELSE.
+        CLEAR lv_fwd_text.
+        LOOP AT lt_line INTO DATA(lv_line).
+          CONCATENATE lv_line-tdline lv_fwd_text INTO lv_fwd_text SEPARATED BY ' ' .
+        ENDLOOP.
+        CLEAR lt_line.
+      ENDIF.
+
+*      Shipping Instruction Text
+      CLEAR : lv_id, lv_lang,lv_object,lv_name, lt_line.
+      lv_id = 'ZSHP'.
+      lV_lang = 'E'.
+      lv_object = 'VBBK'.
+      lv_name = <ls_sd>-salesorder.
+
+*      Text filled
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+*         CLIENT                  = SY-MANDT
+          id                      = lv_id
+          language                = lv_lang
+          name                    = lv_name
+          object                  = lv_object
+*         ARCHIVE_HANDLE          = 0
+*         LOCAL_CAT               = ' '
+*       IMPORTING
+*         HEADER                  =
+*         OLD_LINE_COUNTER        =
+        TABLES
+          lines                   = lt_line
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+      IF sy-subrc <> 0.
+* Implement suitable error handling here
+      ELSE.
+        CLEAR lv_shp_text.
+        LOOP AT lt_line INTO DATA(lv_line1).
+          CONCATENATE lv_line1-tdline lv_shp_text INTO lv_shp_text SEPARATED BY ' ' .
+        ENDLOOP.
+        CLEAR lt_line.
+      ENDIF.
+
+
+      "--------------------------------------------------
+      " Fill final output structure
+      "--------------------------------------------------
+      APPEND VALUE ty_so_po(
+        doc_no            = <ls_sd>-salesorder
+        doc_type          = <ls_sd>-salesordertype
+        order_date        = <ls_sd>-orderdate
+        currency          = <ls_sd>-currency
+        currency_unit     = <ls_sd>-currency
+
+        sold_to           = <ls_sd>-soldtoparty
+        sold_to_name      = <ls_sd>-soldtoname
+        ship_to           = <ls_sd>-shiptoparty
+        ship_to_country   = <ls_sd>-shiptocnt
+        po_requisitioner  = <ls_sd>-requistioner
+
+        cust_po_no        = <ls_sd>-customerpo
+        cust_po_item      = <ls_sd>-customerpoitem
+        doc_item          = <ls_sd>-salesorderitem
+        material          = <ls_sd>-material
+        cust_material     = <ls_sd>-customermaterial
+
+        unit_price        = lv_unit_price
+        qty_ordered       = <ls_sd>-orderqty
+        qty_confirmed     = <ls_sd>-confirmedqty
+
+        unbilling_qty     = lv_unbill_qty
+        unbilling_amt     = lv_unbill_amt
+        undn_qty          = <ls_sd>-undeliveredqty
+
+        req_date          = <ls_sd>-requesteddate
+        confirm_date      = <ls_sd>-confirmdate
+
+        delivery_note_no  = <ls_sd>-deliverynote
+        delivery_block_hd = <ls_sd>-deliveryblockheader
+        delivery_block_it = <ls_sd>-deliveryblockitem
+        ship_cond         = <ls_sd>-shippingcondition
+        comp_dlv_header   = <ls_sd>-CompleteDelivery
+        incoterms_code    = <ls_sd>-incoterms
+        incoterms_loc1    = <ls_sd>-incotermslocation
+        forwarder_text    = lv_fwd_text
+        ship_instr_text   = lv_shp_text
+
+        sales_group       = <ls_sd>-salesgroup
+        sales_group_desc  = <ls_sd>-salesgrouptext
+        sales_office      = <ls_sd>-salesoffice
+        sales_office_desc = <ls_sd>-salesofficetext
+
+        sales_employee_no = <ls_sd>-salesemployeepernr
+        emp_resp_no       = <ls_sd>-respemployeepernr
+        buyer_no          = <ls_sd>-buyerpernr
+        good_receiver_no  = <ls_sd>-goodsreceiverpernr
+        sales_employee_nm = condense( |{ <ls_sd>-salesemployeefirstname } { <ls_sd>-salesemployeelastname }| )
+        emp_resp_name     = condense( |{ <ls_sd>-respemployeefirstname } { <ls_sd>-respemployeelastname }| )
+        buyer_name        = condense( |{ <ls_sd>-buyerfirstname } { <ls_sd>-buyerlastname }| )
+        good_receiver_name = condense( |{ <ls_sd>-goodsreceiverfirstname } { <ls_sd>-goodsreceiverlastname }| )
+
+        mm_abc_indicator  = <ls_sd>-abcindicator
+        mm_country_origin = <ls_sd>-countryoforigin
+        mm_mrp_ctrl_name  = <ls_sd>-mrpcontroller
+        source_module     = 'SD'
+    ) TO gt_output.
+
+    ENDLOOP.
+  ENDIF.
+
+
+  IF it_sd IS INITIAL.
+    MESSAGE 'No data found for selection' TYPE 'I'.
+    RETURN.
+  ENDIF.
+
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form get_mm_cds
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM get_mm_cds .
+
+  TYPES: BEGIN OF ty_mm_agg,
+           document_no   TYPE ebeln,
+           item_no       TYPE ebelp,
+           req_date      TYPE eindt,
+           confirm_date  TYPE dats,
+           qty_confirmed TYPE menge_d,
+         END OF ty_mm_agg.
+
+  DATA: gt_mm_agg TYPE HASHED TABLE OF ty_mm_agg
+                   WITH UNIQUE KEY document_no item_no,
+        ls_mm_agg TYPE ty_mm_agg.
+
+  SELECT *
+*    document_no,
+*    item_no,
+*    source_module,
+*    document_type,
+*    currency,
+*    created_date,
+*    vendor,
+*    shipcondition,
+*    supply_plant,
+*    material,
+*    order_qty,
+*    unit_price,
+*    plant,
+*    storage_location,
+*    incoterm1,
+*    incoterm2,
+*    schdeliv_date,
+*    schedule_qty,
+*    committed_date,
+*    committed_qty,
+*    mrp_controller,
+*    abc_indicator,
+*    country_of_origin
+    FROM zaeu_blk_mm
+    INTO TABLE @DATA(gt_mm_raw)
+    WHERE document_no   IN @so_ebeln
+      AND document_type IN @so_bsart
+      AND purch_org     = 'EU01'
+      AND company_code  = 'EU10'
+      AND supply_plant  IN @s_reswk
+      AND vendor        IN @s_kunag
+      AND material      IN @s_matnr
+      AND created_date  IN @s_cdat
+      AND schdeliv_date IN @s_edatu.
+
+  LOOP AT gt_mm_raw ASSIGNING FIELD-SYMBOL(<ls_raw>).
+
+    READ TABLE gt_mm_agg ASSIGNING FIELD-SYMBOL(<ls_agg>)
+         WITH KEY document_no = <ls_raw>-document_no
+                  item_no     = <ls_raw>-item_no.
+
+    IF sy-subrc <> 0.
+      CLEAR ls_mm_agg.
+      ls_mm_agg-document_no   = <ls_raw>-document_no.
+      ls_mm_agg-item_no       = <ls_raw>-item_no.
+      ls_mm_agg-req_date      = <ls_raw>-schdeliv_date.
+      ls_mm_agg-confirm_date  = <ls_raw>-committed_date.
+      ls_mm_agg-qty_confirmed = <ls_raw>-committed_qty.
+      INSERT ls_mm_agg INTO TABLE gt_mm_agg.
+    ELSE.
+      <ls_agg>-qty_confirmed += <ls_raw>-committed_qty.
+      <ls_agg>-req_date       = COND #( WHEN <ls_raw>-schdeliv_date < <ls_agg>-req_date
+                                        THEN <ls_raw>-schdeliv_date
+                                        ELSE <ls_agg>-req_date ).
+    ENDIF.
+
+  ENDLOOP.
+
+*CLEAR gt_final.
+
+  SORT gt_mm_raw BY document_no item_no.
+
+  LOOP AT gt_mm_raw ASSIGNING FIELD-SYMBOL(<ls_mm>)
+       GROUP BY ( document_no = <ls_mm>-document_no
+                  item_no     = <ls_mm>-item_no ).
+
+    CLEAR gs_output.
+
+    " Read aggregated schedule data
+    READ TABLE gt_mm_agg ASSIGNING FIELD-SYMBOL(<ls_agg1>)
+         WITH KEY document_no = <ls_mm>-document_no
+                  item_no     = <ls_mm>-item_no.
+
+    " --- Header / Common ---
+    gs_output-doc_no        = <ls_mm>-document_no.
+    gs_output-doc_type      = <ls_mm>-document_type.
+    gs_output-order_date   = <ls_mm>-created_date.
+    gs_output-currency     = <ls_mm>-currency.
+    gs_output-source_module = 'MM'.
+
+    " --- Customer PO / Item ---
+    gs_output-doc_item     = <ls_mm>-item_no.
+    gs_output-material     = <ls_mm>-material.
+    gs_output-unit_price  = <ls_mm>-unit_price.
+    gs_output-qty_ordered = <ls_mm>-order_qty.
+
+    IF <ls_agg1> IS ASSIGNED.
+      gs_output-qty_confirmed = <ls_agg1>-qty_confirmed.
+      gs_output-req_date      = <ls_agg1>-req_date.
+      gs_output-confirm_date  = <ls_agg1>-confirm_date.
+    ENDIF.
+
+    " --- Backlog calculations ---
+    gs_output-undn_qty        = gs_output-qty_ordered - gs_output-qty_confirmed.
+    gs_output-unbilling_qty  = gs_output-undn_qty.
+    gs_output-unbilling_amt  = gs_output-unbilling_qty * gs_output-unit_price.
+
+    " --- Shipping / Incoterms ---
+    gs_output-ship_cond        = <ls_mm>-shipcondition.
+    gs_output-incoterms_code  = <ls_mm>-incoterm1.
+    gs_output-incoterms_loc1  = <ls_mm>-incoterm2.
+
+    " --- MM specific ---
+    gs_output-mm_abc_indicator  = <ls_mm>-abc_indicator.
+    gs_output-mm_country_origin = <ls_mm>-country_of_origin.
+    gs_output-mm_mrp_ctrl_name  = <ls_mm>-mrp_controller.
+
+    APPEND gs_output TO gt_output.
+
+  ENDLOOP.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form ALV_output
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM ALV_output .
+
+  DATA: lo_alv TYPE REF TO cl_salv_table.
+  DATA: lo_columns TYPE REF TO cl_salv_columns_table,
+        lo_column  TYPE REF TO cl_salv_column_table.
+
+
+  TRY.
+      cl_salv_table=>factory(
+        IMPORTING
+          r_salv_table = lo_alv
+        CHANGING
+          t_table      = gt_output ). "it_sd ).
+
+      lo_columns = lo_alv->get_columns( ).
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SOURCE_MODULE' ).
+
+          lo_column->set_short_text(  'Source' ).
+          lo_column->set_medium_text( 'Source Module' ).
+          lo_column->set_long_text(   'Source Module' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DOC_NO' ).
+
+          lo_column->set_short_text(  'Document' ).
+          lo_column->set_medium_text( 'Document No' ).
+          lo_column->set_long_text(   'Document Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DOC_TYPE' ).
+
+          lo_column->set_short_text(  'Doc.Type' ).
+          lo_column->set_medium_text( 'Document Type' ).
+          lo_column->set_long_text(   'Document Type' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SHIP_TO' ).
+
+          lo_column->set_short_text(  'Ship-to' ).
+          lo_column->set_medium_text( 'Ship to party' ).
+          lo_column->set_long_text(   'Ship to party' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SHIP_TO_COUNTRY' ).
+
+          lo_column->set_short_text(  'Country' ).
+          lo_column->set_medium_text( 'Ship to country' ).
+          lo_column->set_long_text(   'Ship to country' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'CUST_PO_NO' ).
+
+          lo_column->set_short_text(  'Cust.PO.No' ).
+          lo_column->set_medium_text( 'Customer PO No' ).
+          lo_column->set_long_text(   'Customer PO No' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'CUST_PO_ITEM' ).
+
+          lo_column->set_short_text(  'Cust.Item' ).
+          lo_column->set_medium_text( 'Customer PO Item' ).
+          lo_column->set_long_text(   'Customer PO Item' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DOC_ITEM' ).
+
+          lo_column->set_short_text(  'Doc.Item' ).
+          lo_column->set_medium_text( 'Document Item No' ).
+          lo_column->set_long_text( 'Document Item Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'CUST_MATERIAL' ).
+
+          lo_column->set_short_text(  'C.Material' ).
+          lo_column->set_medium_text( 'Customer Material' ).
+          lo_column->set_long_text( 'Customer Material' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'UNBILLING_AMT' ).
+
+          lo_column->set_short_text(  'UnBill.AMT' ).
+          lo_column->set_medium_text( 'Unbilling Amount' ).
+          lo_column->set_long_text( 'Unbilling Amount' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'UNDN_QTY' ).
+
+          lo_column->set_short_text(  'UnDlv.QTY' ).
+          lo_column->set_medium_text( 'UnDelivered QTY' ).
+          lo_column->set_long_text( 'Undelivered Quantity' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'UNBILLING_QTY' ).
+
+          lo_column->set_short_text(  'UnBill.QTY' ).
+          lo_column->set_medium_text( 'Unbilling QTY' ).
+          lo_column->set_long_text( 'Unbilling Quantity' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'REQ_DATE' ).
+
+          lo_column->set_short_text(  'Req.Date' ).
+          lo_column->set_medium_text( 'Requested date' ).
+          lo_column->set_long_text( 'Requested date' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'CONFIRM_DATE' ).
+
+          lo_column->set_short_text(  'Conf.Date' ).
+          lo_column->set_medium_text( 'Confirm date' ).
+          lo_column->set_long_text( 'Confirmation date' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DELIVERY_NOTE_NO' ).
+
+          lo_column->set_short_text(  'DN No' ).
+          lo_column->set_medium_text( 'Delivery Note No' ).
+          lo_column->set_long_text( 'Delivery Document Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DELIVERY_BLOCK_HD' ).
+
+          lo_column->set_short_text(  'Del.BL.HD' ).
+          lo_column->set_medium_text( 'Delivery Block HD' ).
+          lo_column->set_long_text( 'Delivery Block Header' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DELIVERY_BLOCK_IT' ).
+
+          lo_column->set_short_text(  'Del.BL.IT' ).
+          lo_column->set_medium_text( 'Delivery Block IT' ).
+          lo_column->set_long_text( 'Delivery Block Item' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'FORWARDER_TEXT' ).
+
+          lo_column->set_short_text(  'Forward.Tx' ).
+          lo_column->set_medium_text( 'Forwarder Text' ).
+          lo_column->set_long_text( 'Forwarder Text' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SHIP_INSTR_TEXT' ).
+
+          lo_column->set_short_text(  'Ship.Txt' ).
+          lo_column->set_medium_text( 'Ship.Instr Text' ).
+          lo_column->set_long_text( 'Shipping Instruction Text' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DELAY_REASON_CODE' ).
+
+          lo_column->set_short_text(  'Delay.CD' ).
+          lo_column->set_medium_text( 'Delay Reason CD' ).
+          lo_column->set_long_text( 'Delay Reason Code' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'DELAY_REASON_TEXT' ).
+
+          lo_column->set_short_text(  'Delay.Txt' ).
+          lo_column->set_medium_text( 'Delay Reason Txt' ).
+          lo_column->set_long_text( 'Delay Reason Text' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SO_WORKORDER_STAT' ).
+
+          lo_column->set_short_text(  'WO.Stat' ).
+          lo_column->set_medium_text( 'WO Status' ).
+          lo_column->set_long_text( 'WorkOrder Status' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SALES_GROUP_DESC' ).
+
+          lo_column->set_short_text(  'S.Grp.Desc' ).
+          lo_column->set_medium_text( 'Sales.Grp Desc' ).
+          lo_column->set_long_text( 'Sales group Description' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SALES_OFFICE_DESC' ).
+
+          lo_column->set_short_text(  'S.Off.Desc' ).
+          lo_column->set_medium_text( 'Sales.Off Desc' ).
+          lo_column->set_long_text( 'Sales Office Description' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SALES_EMPLOYEE_NO' ).
+
+          lo_column->set_short_text(  'Sal.EMP.NO' ).
+          lo_column->set_medium_text( 'Sales.EMP.No' ).
+          lo_column->set_long_text( 'Sales Employee Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'SALES_EMPLOYEE_NM' ).
+
+          lo_column->set_short_text(  'Sal.EMP.NM' ).
+          lo_column->set_medium_text( 'Sales.EMP.NAME' ).
+          lo_column->set_long_text( 'Sales Employee Name' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'EMP_RESP_NO' ).
+
+          lo_column->set_short_text(  'EMP.No' ).
+          lo_column->set_medium_text( 'EMP.Resp.No' ).
+          lo_column->set_long_text( 'Employee Responsible Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'EMP_RESP_NAME' ).
+
+          lo_column->set_short_text(  'EMP.Name' ).
+          lo_column->set_medium_text( 'EMP.Name' ).
+          lo_column->set_long_text( 'Employee Responsible Name' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'BUYER_NO' ).
+
+          lo_column->set_short_text(  'BUYER.No' ).
+          lo_column->set_medium_text( 'BUYER.No' ).
+          lo_column->set_long_text( 'Buyer Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'BUYER_NAME' ).
+
+          lo_column->set_short_text(  'BUY.Name' ).
+          lo_column->set_medium_text( 'BUYER.Name' ).
+          lo_column->set_long_text( 'Buyer Name' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'GOOD_RECEIVER_NO' ).
+
+          lo_column->set_short_text(  'Goods.R.No' ).
+          lo_column->set_medium_text( 'Goods.Rec.No' ).
+          lo_column->set_long_text( 'Goods receiver Number' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'GOOD_RECEIVER_NAME' ).
+
+          lo_column->set_short_text(  'Goods.R.NM' ).
+          lo_column->set_medium_text( 'Goods.R.Name' ).
+          lo_column->set_long_text( 'Goods Receiver Name' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'MM_COUNTRY_ORIGIN' ).
+
+          lo_column->set_short_text(  'Origin.Cn' ).
+          lo_column->set_medium_text( 'Origin.Country' ).
+          lo_column->set_long_text( 'Country of Origin-MM' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+
+      TRY.
+          lo_column ?= lo_columns->get_column( 'MM_MRP_CTRL_NAME' ).
+
+          lo_column->set_short_text(  'MRP.Ctrl' ).
+          lo_column->set_medium_text( 'MRP.CTRL.Name' ).
+          lo_column->set_long_text( 'MRP Controller Name' ).
+        CATCH cx_salv_not_found.
+          " Column not found – ignore or log if needed
+      ENDTRY.
+      " Enable all standard ALV functions (sort, filter, export, etc.)
+      lo_alv->get_functions( )->set_all( abap_true ).
+
+      " Optimize column width
+      lo_alv->get_columns( )->set_optimize( abap_true ).
+
+      " Zebra pattern
+      lo_alv->get_display_settings( )->set_striped_pattern( abap_true ).
+
+      " Set ALV title
+      lo_alv->get_display_settings( )->set_list_header(
+        'BackLog Report' ).
+
+      lo_alv->display( ).
+
+    CATCH cx_salv_msg INTO DATA(lx_salv).
+      MESSAGE lx_salv->get_text( ) TYPE 'E'.
+  ENDTRY.
+
+
+ENDFORM.
