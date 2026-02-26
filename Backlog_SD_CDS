@@ -40,9 +40,6 @@ define view ZAEU_BLKSD
       on ZAEU_DELQ_CDS.vgbel = vbap.vbeln
      and ZAEU_DELQ_CDS.vgpos = vbap.posnr
      
-     left outer join lips
-     on lips.vgbel = vbak.vbeln and
-        lips.vgpos = vbap.posnr 
 
     left outer join ZAEU_BILLQ_CDS
       on ZAEU_BILLQ_CDS.aubel = vbap.vbeln
@@ -99,7 +96,6 @@ define view ZAEU_BLKSD
   vbak.auart                         as SalesOrderType,
   vbak.vkorg                         as Salesorg,
   vbak.erdat                         as OrderDate,
-  ZAEU_BILLQ_CDS.vbtyp               as BillingCat,
 
   vbpa_ag.kunnr                      as SoldToParty,
   kna1.name1                         as SoldToName,
@@ -134,11 +130,11 @@ define view ZAEU_BLKSD
   /* --- Schedule Line --- */
   ZAEU_CNFQ_CDS.firstreqdt           as RequestedDate,
   ZAEU_CNFQ_CDS.conf_qty             as ConfirmedQty,
-  ZAEU_DELQ_CDS.Del_qty              as DelivQty,
+  ZAEU_DELQ_CDS.del_qty              as DelivQty,
   ZAEU_BILLQ_CDS.billed_qty          as Billedqty,
 
   /* --- Calculations (ZRSD28B logic) --- */
-  ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_DELQ_CDS.Del_qty, 0 ) )
+  ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_DELQ_CDS.del_qty, 0 ) )
                                      as UndeliveredQty, 
 
   ( ZAEU_CNFQ_CDS.conf_qty - coalesce( ZAEU_BILLQ_CDS.billed_qty, 0 ) )
@@ -150,7 +146,7 @@ define view ZAEU_BLKSD
   /* --- Shipping / Delivery --- */
   vbap.werks                         as Plant,
   vbap.lgort                         as StorageLocation,
-  lips.vbeln                         as DeliveryNote,
+  ZAEU_DELQ_CDS.delivery_note        as DeliveryNote,
   vbak.vsbed                         as ShippingCondition,
   vbak.autlf                         as CompleteDelivery,
 
@@ -204,6 +200,5 @@ where
   and vbap.abgru = ''
   and vbap.absta <> 'C'
   and ( vbap.lfsta <> 'C'  or vbap.uvfak <> 'C' )
-  and ZAEU_BILLQ_CDS.vbtyp <> 'U'
   and vbak.vkorg = 'EU10'
   

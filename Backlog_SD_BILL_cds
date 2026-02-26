@@ -1,0 +1,17 @@
+@AbapCatalog.sqlViewName: 'ZAEU_BILQ'
+@AbapCatalog.compiler.compareFilter: true
+@AbapCatalog.preserveKey: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Helper CDS for billed quantity'
+@Metadata.ignorePropagatedAnnotations: true
+define view ZAEU_BILLQ_CDS as select from vbrp
+  inner join vbrk
+    on vbrk.vbeln = vbrp.vbeln
+{
+  key vbrp.aubel,
+  key vbrp.aupos,
+  sum( vbrp.fkimg ) as billed_qty
+}
+where ( vbrk.fksto = '' or vbrk.fksto is null )
+  and vbrk.vbtyp <> 'U'
+group by vbrp.aubel, vbrp.aupos

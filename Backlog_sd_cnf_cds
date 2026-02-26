@@ -2,14 +2,14 @@
 @AbapCatalog.compiler.compareFilter: true
 @AbapCatalog.preserveKey: true
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Helper CDS view to get Confirmed Quantities'
+@EndUserText.label: 'Helper CDS view for confirmed schedule quantities'
 @Metadata.ignorePropagatedAnnotations: true
 define view ZAEU_CNFQ_CDS as select from vbep
 {
-  vbeln,
-  posnr,
-  lifsp,
+  key vbeln,
+  key posnr,
+  key lifsp,
   sum( bmeng ) as conf_qty,
   min( edatu ) as firstreqdt
 }
-group by vbeln, posnr , lifsp
+group by vbeln, posnr, lifsp
