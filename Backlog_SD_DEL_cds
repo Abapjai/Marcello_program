@@ -2,15 +2,15 @@
 @AbapCatalog.compiler.compareFilter: true
 @AbapCatalog.preserveKey: true
 @AccessControl.authorizationCheck: #NOT_REQUIRED
-@EndUserText.label: 'Helper CDS for Delivery Quantity'
+@EndUserText.label: 'Helper CDS for delivered quantity'
 @Metadata.ignorePropagatedAnnotations: true
-define view ZAEU_DELQ_CDS as select from lips inner join likp
-on likp.vbeln = lips.vbeln
-
+define view ZAEU_DELQ_CDS as select from lips
+  inner join likp
+    on likp.vbeln = lips.vbeln
 {
-    lips.vgbel,
-    lips.vgpos,
-    sum( lips.lfimg ) as Del_qty
+  key lips.vgbel,
+  key lips.vgpos,
+  sum( lips.lfimg ) as del_qty,
+  max( lips.vbeln ) as delivery_note
 }
-group by vgbel,vgpos
-
+group by lips.vgbel, lips.vgpos
